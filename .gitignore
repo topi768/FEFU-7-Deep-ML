@@ -1,0 +1,38 @@
+# Датасеты и исходные выгрузки
+raw/
+data/
+datasets/
+wines.csv
+
+# Виртуальные окружения и кэш Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Jupyter и локальные настройки редакторов
+.ipynb_checkpoints/
+.idea/
+.vscode/
+
+# Результаты обучения и веса моделей
+runs/
+checkpoints/
+lightning_logs/
+wandb/
+*.pt
+*.pth
+*.ckpt
+
+# Локальные настройки, временные и резервные файлы
+.env
+.env.local
+*.bak
+*.tmp
+*.log
+Thumbs.db
+Desktop.ini
+.DS_Store
