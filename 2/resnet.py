@@ -1,4 +1,3 @@
-"Пункт 1 - ResNet-18 для классификации изображений"
 
 from torch import Tensor, nn
 

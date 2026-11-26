@@ -1,4 +1,3 @@
-"Пункт 0. Собственная CNN для классификации изображений"
 
 from collections.abc import Callable
 

@@ -1,0 +1,107 @@
+<div id="shift-equivariance-demo">
+  <style>
+    #shift-equivariance-demo { color:var(--foreground); display:grid; gap:calc(var(--font-size-base) * 1); }
+    #shift-equivariance-demo .controls { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:calc(var(--font-size-base) * 1); }
+    #shift-equivariance-demo .field { display:grid; gap:calc(var(--font-size-base) * .5); }
+    #shift-equivariance-demo .matrices { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:calc(var(--font-size-base) * 1.5); }
+    #shift-equivariance-demo .matrix-panel { display:grid; align-content:start; gap:calc(var(--font-size-base) * .5); min-width:0; }
+    #shift-equivariance-demo .matrix { display:grid; width:100%; max-width:300px; gap:2px; }
+    #shift-equivariance-demo .cell { display:flex; align-items:center; justify-content:center; min-width:0; aspect-ratio:1; background:color-mix(in srgb,var(--viz-series-1) var(--shade,12%),transparent); color:var(--foreground); }
+    #shift-equivariance-demo .cell.zero { background:var(--muted); }
+    #shift-equivariance-demo .cell.outside { background:repeating-linear-gradient(135deg,var(--muted) 0px,var(--muted) 5px,transparent 5px,transparent 8px); }
+    #shift-equivariance-demo .coordinate { display:flex; align-items:center; justify-content:center; color:var(--muted-foreground); aspect-ratio:1; }
+    #shift-equivariance-demo .legend { display:flex; gap:calc(var(--font-size-base) * 1); flex-wrap:wrap; }
+    #shift-equivariance-demo .legend span { display:flex; align-items:center; gap:6px; }
+    #shift-equivariance-demo .swatch { width:14px; height:14px; background:color-mix(in srgb,var(--viz-series-1) 28%,transparent); }
+    #shift-equivariance-demo .swatch.outside { background:repeating-linear-gradient(135deg,var(--muted) 0px,var(--muted) 3px,transparent 3px,transparent 5px); }
+    @media(max-width:490px) { #shift-equivariance-demo .matrices { grid-template-columns:1fr; } }
+  </style>
+  <h3>Сдвиг изображения и свёртка</h3>
+  <div class="controls">
+    <div class="field"><label class="form-label" for="eq-down">По строкам: <output id="eq-down-value" class="tabular-nums">1 вниз</output></label><input class="form-range" id="eq-down" type="range" min="-2" max="2" step="1" value="1"></div>
+    <div class="field"><label class="form-label" for="eq-right">По столбцам: <output id="eq-right-value" class="tabular-nums">1 вправо</output></label><input class="form-range" id="eq-right" type="range" min="-2" max="2" step="1" value="1"></div>
+  </div>
+  <div class="text-small">Ядро 3×3: все веса равны 1 · шаг 1 · без padding · новые края при сдвиге заполнены нулями</div>
+  <div class="matrices">
+    <section class="matrix-panel"><h3>Исходное изображение X · 7×7</h3><div class="matrix tabular-nums" id="eq-original" role="table" aria-label="Исходная матрица 7 на 7"></div></section>
+    <section class="matrix-panel"><h3>Сдвинутое изображение · 7×7</h3><div class="matrix tabular-nums" id="eq-shifted" role="table" aria-label="Сдвинутая матрица 7 на 7"></div></section>
+    <section class="matrix-panel"><h3>① Сдвиг → свёртка · 5×5</h3><div class="matrix tabular-nums" id="eq-first" role="table" aria-label="Свёртка сдвинутого изображения, 5 на 5"></div></section>
+    <section class="matrix-panel"><h3>② Свёртка → сдвиг · 5×5</h3><div class="matrix tabular-nums" id="eq-second" role="table" aria-label="Сдвиг результата свёртки, 5 на 5"></div></section>
+  </div>
+  <div class="legend text-small"><span><i class="swatch" aria-hidden="true"></i>Общая допустимая область</span><span><i class="swatch outside" aria-hidden="true"></i>Край вне области доказательства</span></div>
+  <output id="eq-status" class="tabular-nums" aria-live="polite"></output>
+</div>
+<script>
+(() => {
+  const root=document.getElementById('shift-equivariance-demo');
+  const el=id=>root.querySelector('#'+id);
+  const X=[
+    [1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,1],
+    [1,0,2,3,0,0,1],
+    [1,0,4,5,6,0,1],
+    [1,0,0,7,8,0,1],
+    [1,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1]
+  ];
+  function shift(matrix,a,b) {
+    return matrix.map((row,i)=>row.map((_,j)=>matrix[i-a]?.[j-b]??0));
+  }
+  function convolve(matrix) {
+    const size=matrix.length-2;
+    return Array.from({length:size},(_,i)=>Array.from({length:size},(_,j)=>{
+      let value=0;
+      for(let u=0;u<3;u++) for(let v=0;v<3;v++) value+=matrix[i+u][j+v];
+      return value;
+    }));
+  }
+  function draw(id,matrix,common) {
+    const target=el(id), n=matrix.length;
+    target.style.gridTemplateColumns=`repeat(${n+1},minmax(0,1fr))`;
+    const fragment=document.createDocumentFragment();
+    function coordinate(value){const d=document.createElement('span');d.className='coordinate text-small';d.textContent=value;d.setAttribute('aria-hidden','true');fragment.appendChild(d);}
+    coordinate('i / j');for(let j=0;j<n;j++) coordinate(j);
+    matrix.forEach((row,i)=>{
+      coordinate(i);
+      row.forEach((value,j)=>{
+        const d=document.createElement('span');
+        const inside=!common||common(i,j);
+        d.className='cell'+(!inside?' outside':value===0?' zero':'');
+        d.style.setProperty('--shade',`${10+Math.min(value/36,1)*32}%`);
+        d.textContent=value;
+        d.setAttribute('role','cell');
+        d.setAttribute('aria-label',`Строка ${i}, столбец ${j}: ${value}${inside?'':', вне общей области'}`);
+        d.setAttribute('data-tooltip',`[${i}, ${j}] = ${value}${inside?'':' · граница'}`);
+        fragment.appendChild(d);
+      });
+    });
+    target.replaceChildren(fragment);
+  }
+  const originalOutput=convolve(X);
+  function direction(n,positive,negative){return n===0?'0':`${Math.abs(n)} ${n>0?positive:negative}`;}
+  function render(){
+    const a=Number(el('eq-down').value), b=Number(el('eq-right').value);
+    el('eq-down-value').textContent=direction(a,'вниз','вверх');
+    el('eq-right-value').textContent=direction(b,'вправо','влево');
+    const moved=shift(X,a,b), first=convolve(moved), second=shift(originalOutput,a,b);
+    const common=(i,j)=>i-a>=0&&i-a<5&&j-b>=0&&j-b<5;
+    draw('eq-original',X);draw('eq-shifted',moved);draw('eq-first',first,common);draw('eq-second',second,common);
+    let total=0,matches=0,outsideDifferences=0;
+    for(let i=0;i<5;i++)for(let j=0;j<5;j++){
+      if(common(i,j)){total++;if(first[i][j]===second[i][j])matches++;}
+      else if(first[i][j]!==second[i][j])outsideDifferences++;
+    }
+    el('eq-status').textContent=`В общей области совпали ${matches} из ${total} элементов · различий на краях: ${outsideDifferences}`;
+    return {a,b,matches,total};
+  }
+  function save(){const state=render();if(window.openai?.setWidgetState)window.openai.setWidgetState({modelContent:state,privateContent:null}).catch(()=>{});}
+  function restore(state){
+    const s=state?.modelContent;
+    if(s&&Number.isInteger(s.a)&&Number.isInteger(s.b)&&Math.abs(s.a)<=2&&Math.abs(s.b)<=2){el('eq-down').value=s.a;el('eq-right').value=s.b;}
+    render();
+  }
+  el('eq-down').addEventListener('input',save);el('eq-right').addEventListener('input',save);
+  window.addEventListener('openai:set_globals',event=>{if(event.detail?.globals?.widgetState)restore(event.detail.globals.widgetState);});
+  restore(window.openai?.widgetState);
+})();
+</script>
